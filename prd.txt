@@ -1,0 +1,198 @@
+Product Requirements Document (PRD)
+
+Project Name: SYY GPT – AI Study Assistant for Surveying & Geoinformatics Students
+Owner: Mobolaji Opeyemi Bolatito Obinna
+Version: v1.0
+
+
+
+
+1. Overview
+
+SYY GPT is an AI-powered educational assistant built to help Surveying and Geoinformatics (SYY) students access study materials, generate notes, and practice exam/test questions. It integrates with Google Drive to fetch course PDFs, processes the content with LangChain + OpenAI, and provides conversational learning support via a CLI interface.
+
+
+
+
+2. Goals & Objectives
+
+Provide students with on-demand academic assistance.
+
+Automate retrieval, processing, and summarization of course PDFs and DOCX files.
+
+Enable interactive Q&A and study material generation (notes, summaries, quizzes, exam/test questions).
+
+Support semester/course/topic/task navigation in a structured conversational flow.
+
+Allow custom file uploads (PDF/DOCX) for extracting and solving questions.
+
+
+
+3. Target Users
+
+Primary: Surveying and Geoinformatics students (Year 3 / 300 Level).
+
+Secondary: Other engineering students who want course notes, summaries, or test prep.
+
+
+
+4. Key Features
+
+4.1 Google Drive Integration
+
+Authenticate with Google Drive (OAuth).
+
+Locate the 300 Level folder in Drive (accepts variations like “Year 3”, “Level 300”).
+
+Fetch semester subfolders (First Semester, Second Semester).
+
+Download all PDF course materials.
+
+
+4.2 Document Processing
+
+Extract text from PDFs (pypdf).
+
+Extract text from DOCX (docx2txt).
+
+Store documents with metadata (course name, semester).
+
+Split content into chunks (LangChain RecursiveCharacterTextSplitter) for embeddings.
+
+
+4.3 AI/LLM Integration
+
+Use OpenAI embeddings (text-embedding-3-small).
+
+Build a FAISS vector store for semantic retrieval.
+
+Use ChatOpenAI (gpt-oss-120b) for responses.
+
+Implement a Conversational Retrieval Chain with memory for multi-turn dialogue.
+
+
+4.4 Conversational Workflow
+
+Greeting → Semester → Course → Topic → Task.
+
+Supported tasks: notes, exam-friendly notes, summary, quizzes, exam questions, test questions, all.
+
+Support commands:
+
+"upload <file_path>" → process custom PDFs/DOCX.
+
+"go back" → navigate one step back.
+
+"exit" → end conversation.
+
+
+
+4.5 CLI Interface
+
+Runs in terminal.
+
+Prompts user for input.
+
+Returns AI-generated responses (notes, summaries, Q&A, etc.).
+
+
+5. Non-Functional Requirements
+
+Performance: Responses should return within ~5–10 seconds for medium-length PDFs.
+
+Scalability: Should support multiple semesters and courses as Drive content grows.
+
+Reliability: Must handle cases where no PDFs are found (graceful fallback).
+
+Security:
+
+Store Google tokens in token.json.
+
+API keys in .env file.
+
+Do not hardcode sensitive credentials.
+
+
+Portability: Runs on Windows/Linux/Mac with Python 3.9+.
+
+
+
+
+
+6. Dependencies
+
+Google Drive API (google-auth, google-auth-oauthlib, google-api-python-client)
+
+LangChain
+
+OpenAI (langchain_openai)
+
+FAISS
+
+pypdf
+
+docx2txt
+
+python-dotenv
+
+
+
+
+
+7. User Flow
+
+1. Start CLI → User greeted.
+
+
+2. Select Semester → First or Second.
+
+
+3. Select Course → Course list based on semester.
+
+
+4. Enter Topic → Free text input.
+
+
+5. Select Task → Choose study material type (notes, summary, quizzes, etc.).
+
+
+6. AI Response → GPT generates the requested content.
+
+
+7. Loop → User can go back, upload a file, or exit.
+
+
+
+
+
+
+8. Risks & Mitigations
+
+Risk: PDFs may not extract clean text (scanned images).
+
+Mitigation: Add OCR support (e.g., Tesseract).
+
+
+Risk: Long documents may exceed token limits.
+
+Mitigation: Chunking + retrieval-based summarization.
+
+
+Risk: Google Drive structure may vary.
+
+Mitigation: Flexible folder name matching (already implemented).
+
+
+
+
+9. Future Enhancements
+
+Add Web UI (Flask/FastAPI + React).
+
+Support speech-to-text and text-to-speech for accessibility.
+
+Add student progress tracking (quizzes, performance history).
+
+Integrate OCR for scanned PDFs.
+
+Expand to 100,200,400,500 Level materials.
