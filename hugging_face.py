@@ -74,7 +74,7 @@ embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L
 # Embeding in batches with progress bar
 def embed_with_progress(texts, embedding, batch_size=32):
     all_embeddings = []
-    for i in tqdm(range(0, len(texts), batch_size), desc="🔍 Embedding chunks"):
+    for i in tqdm(range(0, len(texts), batch_size), desc=" Embedding chunks"):
         batch = texts[i:i+batch_size]
         batch_embeddings = embedding.embed_documents(batch)
         all_embeddings.extend(batch_embeddings)
@@ -85,12 +85,14 @@ all_embeddings = embed_with_progress(documents, embedding, batch_size=32)
 
 # Building FAISS index
 vector_store = FAISS.from_embeddings(
-    [(emb, doc) for emb, doc in zip(all_embeddings, documents)],
+    [(doc, emb) for doc, emb in zip(documents, all_embeddings)],
     embedding,
     metadatas=metadata
 )
 print(" Finished embeddings and created FAISS index.")
-
+SAVE_DIR="faiss_index"
+vector_store.save_local(SAVE_DIR)
+print(f"Faiss Index saved to {SAVE_DIR}")
 #  ChatOpenAI 
 llm = ChatOpenAI(
     model="gpt-4o",  
@@ -105,10 +107,10 @@ system_prompt = (
     "Answer user questions with clear, accurate, and concise explanations in a professional yet approachable tone."
 )
 prompt_template = PromptTemplate(
-    input_variables=["context", "question", "chat_history"],
+    input_variables=["context", "question", ],
     template=(
         "{system_prompt}\n\n"
-        "Chat History:\n{chat_history}\n\n"
+        "Relevant Context:\n{context}\n\n"
         "Human: {question}\n\n"
         "Assistant: "
     )
