@@ -45,8 +45,8 @@ for root, dirs, files in os.walk(PDF_PATH):
 
 # Split texts into chunks
 text_splitter = CharacterTextSplitter(
-    chunk_size=250,
-    chunk_overlap=50,
+    chunk_size=1200,
+    chunk_overlap=100,
     separator="\n"
 )
 
@@ -98,7 +98,7 @@ except Exception as e:
     # Fallback to batch processing if needed
     all_embeddings = embed_in_smaller_batches(documents, embedding, batch_size=10)
     vector_store = FAISS.from_embeddings(
-        [(emb, doc) for emb, doc in zip(all_embeddings, documents)],
+        [(doc, emb) for doc, emb in zip(documents, all_embeddings)],
         embedding,
         metadatas=metadata
     )
@@ -121,7 +121,7 @@ prompt_template = PromptTemplate(
     input_variables=["context", "question", "chat_history"],
     template=(
         "{system_prompt}\n\n"
-        "Chat History:\n{chat_history}\n\n"
+        "Releavant Context:\n{context}\n\n"
         "Human: {question}\n\n"
         "Assistant: "
     )

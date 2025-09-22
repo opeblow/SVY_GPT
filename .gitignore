@@ -2,5 +2,5 @@ myenv
 __pycache__
 .env
 ALL_PDF_FILES
-faiss_index
+
 

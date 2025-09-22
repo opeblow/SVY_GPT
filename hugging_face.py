@@ -9,6 +9,7 @@ from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from tqdm import tqdm
+import json
 
 # Loading environment variables
 load_dotenv()
@@ -93,6 +94,10 @@ print(" Finished embeddings and created FAISS index.")
 SAVE_DIR="faiss_index"
 vector_store.save_local(SAVE_DIR)
 print(f"Faiss Index saved to {SAVE_DIR}")
+docs_metadata=metadata
+with open(f"{SAVE_DIR}/index.json","w")as f:
+    json.dump(docs_metadata,f,indent=2)
+print("Metadata saved to index.json.")
 #  ChatOpenAI 
 llm = ChatOpenAI(
     model="gpt-4o",  

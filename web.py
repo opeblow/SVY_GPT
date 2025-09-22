@@ -1,3 +1,4 @@
+# streamlit.py
 import streamlit as st
 import os
 from langchain_community.vectorstores import FAISS
@@ -51,7 +52,6 @@ with st.spinner("Loading FAISS index..."):
 with st.sidebar:
     st.header("Settings")
     model_name = st.selectbox("LLM Model", ["gpt-4o", "gpt-3.5-turbo"], index=0)
-    top_k = st.slider("Number of retrieved chunks (k)", 1, 10, 5)
     show_sources = st.checkbox("Show retrieved documents", value=True)
 
 # -------------------------
@@ -86,9 +86,12 @@ memory = ConversationBufferMemory(
     output_key="answer"
 )
 
+# Hard-code top_k = 5
+retriever = vector_store.as_retriever(search_kwargs={"k": 5})
+
 chain = ConversationalRetrievalChain.from_llm(
     llm=llm,
-    retriever=vector_store.as_retriever(search_kwargs={"k": top_k}),
+    retriever=retriever,
     memory=memory,
     combine_docs_chain_kwargs={"prompt": prompt_template.partial(system_prompt=system_prompt)},
     return_source_documents=True
@@ -112,11 +115,11 @@ user_input = st.text_input("Type your question here and press Enter:")
 if user_input:
     with st.spinner("SVY GPT is thinking..."):
         try:
-            response = chain({"question": user_input, "retriever__search_kwargs": {"k": top_k}})
+            response = chain({"question": user_input})
             answer = response["answer"]
             source_docs = response.get("source_documents", [])
         except Exception as e:
-            answer = "An error occurred. Please try again."
+            answer = f"An error occurred: {e}"
             source_docs = []
             st.error(answer)
 
