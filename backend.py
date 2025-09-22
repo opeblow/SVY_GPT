@@ -1,24 +1,31 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel,field_validator
 import faiss
 import json
 import os
 from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.memory import ConversationBufferMemory
 from langchain.chains.conversational_retrieval.base import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
 import uvicorn
+
 load_dotenv()
 openai_api_key=os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     raise ValueError("Please set OPENAI_API_KEY in your .env file.")
 app=FastAPI()#initializing fastapi app
 INDEX_DIR="faiss_index"#path to faiss index folder
-vector_store=FAISS.load_local(INDEX_DIR,embeddings=None,allow_dangerous_deserialization=True)
-with open(os.path.join(INDEX_DIR,"index.json"),"r")as f:
-    docs_metadata=json.load(f)
+if not os.path.exists(INDEX_DIR):
+    raise FileNotFoundError(f"FAIDD Index dictionary '{INDEX_DIR}'does not exist")
+embeddings=HuggingFaceEmbeddings(
+    model_name="sentence-transformers/MiniLM-L6-v2",
+    model_kwargs={"device":"cpu"}
+
+)
+vector_store=FAISS.load_local(INDEX_DIR,embeddings=embeddings,allow_dangerous_deserialization=True)
 llm=ChatOpenAI(
     model="gpt-4o",  
     openai_api_key=openai_api_key,
@@ -58,6 +65,14 @@ chain = ConversationalRetrievalChain.from_llm(
 )
 class QueryRequest(BaseModel):
     message:str
+
+    @field_validator("message")
+    def validate_message(cls,value):
+        if not value.strip():
+            raise ValueError("Message cannot be empty.")
+        if len(value)>1000:
+            raise ValueError("Message is too long")
+        return value
 @app.post("/query")
 async def query_agent(request:QueryRequest):
     try:
