@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI ,HTTPException,status
 from pydantic import BaseModel,field_validator
+import torch
 import faiss
 import json
 import os
@@ -16,70 +17,118 @@ load_dotenv()
 openai_api_key=os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     raise ValueError("Please set OPENAI_API_KEY in your .env file.")
-app=FastAPI()#initializing fastapi app
-INDEX_DIR="faiss_index"#path to faiss index folder
-if not os.path.exists(INDEX_DIR):
-    raise FileNotFoundError(f"FAIDD Index dictionary '{INDEX_DIR}'does not exist")
-embeddings=HuggingFaceEmbeddings(
-    model_name="sentence-transformers/MiniLM-L6-v2",
-    model_kwargs={"device":"cpu"}
+app=FastAPI(
+    title="SVY AGENT API",
+    discription="A FastAPI application for a Geomatics-related RAG agent",
+    version="1.0.0"
+)
+INDEX_DIR="faiss_index"
+llm=None
+embeddings=None
+vector_store=None
+chain=None
+def initialize_components():
+    global llm,embeddings,vector_store,chain
+    print("Initializing components..")
+    try:
+        device="cuda" if torch.cuda.is_available() else "cpu"
+        embeddings=HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_kwargs={"device":device}
+        )
+        print("Embeddings model successfully loaded!")
+    except Exception as e:
+        raise RuntimeError(f"Failed to load embeddings model :{e}")
+    if not os.path.exits(INDEX_DIR):
+        raise RuntimeError(f"Faiss index dictionary '{INDEX_DIR}' not found")
+    try:
+        vector_store=FAISS.load_local(folder_path=INDEX_DIR,
+                                      embeddings=embeddings,allow_dangerous_deserialization=True)
+        print("FAISS Index loaded successfully.")
+    except Exception as e:
+        raise RuntimeError(f"Failed to load FAISS Index from '{INDEX_DIR}':{e}")
+    try:
+        llm=ChatOpenAI(
+            model="gpt-4o",
+            openai_api_key=openai_api_key,
+            temperature=0.7,
+            max_tokens=500
 
-)
-vector_store=FAISS.load_local(INDEX_DIR,embeddings=embeddings,allow_dangerous_deserialization=True)
-llm=ChatOpenAI(
-    model="gpt-4o",  
-    openai_api_key=openai_api_key,
-    temperature=0.7,
-    max_tokens=500
-)
+        )
+        print("LLM Initialized successfully.")
+    except Exception as e:
+        raise RuntimeError(f"Failed to initialize LLM:{e}")
+    system_prompt=(
+        "You are SVY AGENT,an expert AI specializing in Geomatics-related topics."
+        "Answer user questions with clear,aacurate,and concise explanation."
+        "In a professional yet approachable tone."
 
-# System prompt
-system_prompt = (
-    "You are SVY Agent, an expert AI specializing in Geomatics-related topics. "
-    "Answer user questions with clear, accurate, and concise explanations in a professional yet approachable tone."
-)
-prompt_template = PromptTemplate(
-    input_variables=["context", "question", ],
-    template=(
-        "{system_prompt}\n\n"
-        "Relevant Context:\n{context}\n\n"
-        "Human: {question}\n\n"
-        "Assistant: "
     )
-)
+    prompt_template=prompt_template(
+        input_variables=["system_promt","context","question"],
+        template=(
+            "{system_prompt}\n\n"
+            "Relevant Context:\n{context}\n\n"
+            "Human:{question}\n\n"
+            "Assistant:"
+        )
+    )
+    memory=ConversationBufferMemory(
+        memory_key="chat_history",
+        return_messages=True,
+        output_key="answer"
+    )
+    try:
+        chain=ConversationalRetrievalChain.from_llm(
+            llm=llm,
+            retriever=vector_store.as_retriever(search_kwargs={"k:3"}),
+            memory=memory,
+            combine_docs_chain_kwargs={"prompt":prompt_template.partial(system_prompt=system_prompt)},
+            return_source_documents=False
+        )
+        print("ConversationalRetrievalChain created successfully.")
+    except Exception as e:
+        raise RuntimeError(f"Failed to create retrieval chain:{e}")
 
-# Conversation memory
-memory = ConversationBufferMemory(
-    memory_key="chat_history",
-    return_messages=True,
-    output_key="answer"
-)
-
-# Conversational retrieval chain
-chain = ConversationalRetrievalChain.from_llm(
-    llm=llm,
-    retriever=vector_store.as_retriever(search_kwargs={"k": 3}),
-    memory=memory,
-    combine_docs_chain_kwargs={"prompt": prompt_template.partial(system_prompt=system_prompt)},
-    return_source_documents=False
-)
+@app.on_event("startup")
+async def startup_event():
+    try:
+        initialize_components()
+    except Exception as e:
+        print(f"Start up failed:{e}")
+        raise
 class QueryRequest(BaseModel):
     message:str
-
     @field_validator("message")
     def validate_message(cls,value):
-        if not value.strip():
-            raise ValueError("Message cannot be empty.")
         if len(value)>1000:
             raise ValueError("Message is too long")
         return value
+@app.get("/health")
+async def health_check():
+    if chain:
+        return{"status":"ok","message":"SVY AGENT API Is running and ready"}
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="SVY AGENT is not ready. Check server logs for details." 
+    )
 @app.post("/query")
 async def query_agent(request:QueryRequest):
+    if not chain:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Agent is not initialized. Please check server status."
+        )
     try:
-        human_message=request.message
-        response=chain({"question":human_message})
-        return {"answer":response["answer"]}
+        response=chain.invoke({"question":request.message})
+        answer=response.get("answer",response)
+        return {"answer":answer}
     except Exception as e:
-        return {"error":str(e)}
+        print(f"Error during query:{e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occured:{e}"
+        )
 if __name__=="__main__":
-    uvicorn.run("backend:app",host="127.0.0.1",port=8000,reload=True)
+    uvicorn.run(app,host="0.0.0.0",port=8000)
+
