@@ -86,7 +86,7 @@ def initialize_components():
     try:
         chain=ConversationalRetrievalChain.from_llm(
             llm=llm,
-            retriever=vector_store.as_retriever(search_kwargs={"k:5"}),
+            retriever=vector_store.as_retriever(search_kwargs={"k":5}),
             memory=memory,
             combine_docs_chain_kwargs={"prompt":prompt_template.partial(system_prompt=system_prompt)}
         )
