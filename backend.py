@@ -55,7 +55,7 @@ def initialize_components():
     try:
         llm=ChatOpenAI(
             model="gpt-4o",
-            opeanai_api_key=openai_api_key,
+            openai_api_key=openai_api_key,
             temperature=0.7,
             max_tokens=500
 
