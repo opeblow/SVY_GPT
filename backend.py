@@ -12,7 +12,9 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chains.conversational_retrieval.base import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
+from typing import List,Tuple
 import uvicorn
+from contextlib import asynccontextmanager
 
 load_dotenv()
 openai_api_key=os.getenv("OPENAI_API_KEY")
@@ -28,6 +30,75 @@ llm=None
 embeddings=None
 vector_store=None
 chain=None
+
+MEMORY_FILE="chat_memory.json"
+MEMORY_VERSION="1.0"
+PROMPT_DIR="prompts"
+PROMPT_VERSION="v1"
+app.state.chat_history=[]
+
+def load_memory()->List[Tuple[str,str]]:
+    """Load chat history from json file"""
+    if os.path.exists(MEMORY_FILE):
+        with open(MEMORY_FILE,"r")as file:
+            try:
+               data=json.load(file)
+               if isinstance(data,dict) and data.get("version")==MEMORY_VERSION:
+                 history=data["history"]
+               else:
+                  print("Unversioned memory file detected. Attempting to load as list.")
+                  history=data if isinstance(data,list) else []
+               for item in history:
+                   if not (isinstance(item,list) and len(item)==2 and all(isinstance(s,str) for s in item)):
+                      raise ValueError(f"Invalid memory entry:{item}. Expected [str,str]")
+               print("Chat memory loaded successfully.")
+               return history
+            except (json.JSONDecodeError,ValueError)as e:
+                print(f"Error loading memory:{e}.Returning empty history.")
+                return []
+
+        
+
+def save_memory(memory:List[Tuple[str,str]]):
+    """Save chat history to json file"""
+    try:
+        with open(MEMORY_FILE,"w")as file:
+            json.dump({"version":MEMORY_VERSION,"history":memory},file,indent=2)
+        print("Chat memory saved successfully.")
+    except Exception as e:
+        print(f"Error saving memory:{e}")
+        raise
+
+def migrate_memory():
+    try:
+        old_history=load_memory()
+        new_history=[(q,a,{"timestamp":"2025-09-28"}) for q,a in old_history]
+        with open(MEMORY_FILE,"w")as file:
+            json.dump({"version":"2.0","history":new_history},file,indent=2)
+        print("Memory migrated to version 2.0 with timestamps.")
+        return new_history
+    except Exception as e:
+        print(f"Memory migration failed:{e}")
+        raise
+
+def load_system_prompt()->str:
+    """Load system prompt from a versioned file"""
+    prompt_file=os.path.join(PROMPT_DIR,f"system_prompt_{PROMPT_VERSION}.txt")
+    if not os.path.exists(prompt_file):
+        print(f"Prompt file{prompt_file} not found. Using default prompt.")
+        return(
+            "You are SVY AGENT,an expert AI specializing in Geomatics-related topics."
+            "Answer user questions with clear,accurate,and  concise explanations."
+            "In a professional yet approachable tone."
+            "Only use chat history when the user explicitly asks about previous questions,"
+            "Such as 'what did i just ask?' or 'what was my last question?'"
+            "Do not provide formulas or answers to mathematical problems in LaTeX code;"
+            "Instead,explain mathematical concepts in plain text if neccessary."
+        )
+    with open(prompt_file,"r")as file:
+        print(f"Loaded system prompt from {prompt_file}")
+        return file.read()
+
 
 def initialize_components():
     global llm,embeddings,vector_store,chain
@@ -68,6 +139,10 @@ def initialize_components():
         
     "You are SVY Agent, an expert AI specializing in Geomatics-related topics. "
     "Answer user questions with clear, accurate, and concise explanations in a professional yet approachable tone."
+    "Only use chat history when the user explicitly asks about previous questions,"
+    "such as 'what did i just ask?.'"
+    "Do not provide formulas or answers to mathematical problems in LaTex code;"
+    'Instead,explain mathematical concepts in plain text if neccessary.'
     )
     prompt_template=PromptTemplate(
         input_variables=["system_prompt","context","question"],
@@ -93,13 +168,21 @@ def initialize_components():
         print("ConversationalRetrievalChain created successfully.")
     except Exception as e:
         raise RuntimeError(f"Failed to create retrieval chain :{e}")
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app:FastAPI):
     try:
+        os.makedirs(PROMPT_DIR,exist_ok=True)
         initialize_components()
-    except Exception as e:
+        if not os.path.exists(MEMORY_FILE):
+            save_memory([])
+        app.state.chat_history=load_memory()
+        print("Startup completed successfully.")
+    except (OSError,RuntimeError)as e:
         print(f"Startup failed:{e}")
-        raise
+        raise 
+    yield
+    print("Shutdown completed")
+app.lifespan=lifespan
 class QueryRequest(BaseModel):
     message:str
     @field_validator("message")
@@ -110,13 +193,21 @@ class QueryRequest(BaseModel):
 @app.get("/health")
 async def health_check():
     if chain:
-        return {"status":"ok","message":"SVY AGENT API is running and ready!"}
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="SVY AGENT is not ready. Check server logs for details."
-    )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="SVY AGENT is not ready.Check server logs for details."
+        )
+    try:
+        load_memory()
+        return {"status":"ok","message":"SVY AGENT API is running and ready."}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Memory file error:{e}"
+        )
 @app.post("/query")
 async def query_agent(request:QueryRequest):
+    global chat_history
     if not chain:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -125,6 +216,8 @@ async def query_agent(request:QueryRequest):
     try:
         response=chain.invoke({"question":request.message})
         answer=response.get("answer",response)
+        chat_history.append((request.message,answer))
+        save_memory(chat_history)
         return {"answer":answer}
     except Exception as e:
         print(f"Error during query:{e}")
