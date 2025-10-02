@@ -8,67 +8,61 @@ load_dotenv()
 TELEGRAM_TOKEN=os.getenv("TELEGRAM_BOT_TOKEN")
 if not TELEGRAM_TOKEN:
     raise ValueError("Please set TELEGRAM_BOT-TOKEN in your .env file.")
-FASTAPI_URL=os.getenv("FASTAPI_URL")
-if not FASTAPI_URL:
-    raise ValueError("Please set FASTAPI_URL in your environment.")
+FASTAPI_URL="http://127.0,0,1:8000/query"
 logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
-REQUEST_TIMEOUT=30
-client=httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
+#Handles for /start command
 async def start(update,context):
-    """Handles /start command"""
-    await update.message.reply_text(
-        "Hi! I am SVY AGENT,your Geomatics expert.\n"
-        "Ask me anything about surveying,mapping,and geospatial data."
-    )
+    await update.message.reply_text("Hi i am SVY AGENT,your Geomatics expert.Ask me anything!")
+
+#Handles text messages
 async def handle_message(update,context):
-    """Handles incoming messages"""
     user_message=update.message.text
-    logger.info(f"User:{user_message}")
-    await context.bot.sed_chat_action(chat_id=update.effective_chat.id,action="typing")
+    logger.info(f"Received message:{user_message}")
+
+    #Handles temporary message to let user know the query is processing
+    temp_message=await update.message.reply_text("Processing your query..please wait")
+
     try:
-        response=await client.post(
-            FASTAPI_URL,
-            json={"message":user_message,"debug":False}
-        )
+        async with httpx.AsyncClient(timeout=60.0)as client:
+            payload={"message":user_message,"debug":False}
+            response=await client.post(FASTAPI_URL,json=payload)
+        #removes the temporary message now that there is a response
 
+        await temp_message.delete()
         if response.status_code==200:
-            answer=response.json().get("answer","No response received.")
+            answer=response.json().get("answer","No response from the agent.")
             await update.message.reply_text(answer)
-        else:
-            logger.error(f"API error{response.status_code}:{response.text}")
-            await update.message.reply_text(
-                "Service temporarily unavailable.Please try again."
-            )
-    except httpx.TimeoutException:
-        logger.error("Request Timeout")
-        await update.message.reply_text("Request timed out.Please try again.")
 
-    except Exception as e:
-        logger.error(f"Error:{e}",exc_info=True)
+        else:
+            error_detail=response.json().get("detail","Unknown error")
+            logger.error(f"FastAPI error:{response.status_code}-Detail:{error_detail}")
+            await update.message.reply_text(
+                f"Sorry,the Geomatics Agent encountered an error (status:{response.status_code}).Please try again"
+            )
+    except httpx.ConnectError:
+        #handles connection failure
+        logger.error(f"HTTPX ConnectError:Could not connect to FastAPI seerver at {FASTAPI_URL}")
         await update.message.reply_text(
-            "An error occured.Please try again later."
+            "Error:Could not connect to the Geomatics Agent server.Please ensure the backend is running."
         )
+        await temp_message.delete()
 
 async def error_handler(update,context):
-    """Handles errors"""
-    logger.error(f"Update {update} caused error:{context.error}",exc_info=context.error)
+    """Log the error and send a message."""
+    logger.error(f"Update{update}caused error {context.error}")
+    if update and update.message:
+        await update.message.reply_text("An  internal bot error occured.Please try a different query.")
 
-async def post_shutdown(application):
-    """Cleanup on shutdown"""
-    await client.aclose()
 
+# Main Function
 def main():
-    """Starts the bot"""
-    app=Application.builder().token(TELEGRAM_TOKEN).build()
-    app.add_handler(CommandHandler("start",start))
-    app.add_handler(MessageHandler(filters.TEXT & filters.COMMAND,handle_message))
+    app=Application.bui().token(TELEGRAM_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,handle_message))
     app.add_error_handler(error_handler)
 
-    app.post_shutdown=post_shutdown
-    logger.info("Bot Started")
-    app.run_polling(allowed_updates=["message"])
-
+    logger.info("Starting Telegram bot....Ensure FastAPI is running on http://127.0.0.1:8000")
+    app.run_polling(allowed_updates=["message","channel_post","edited_message","edited_channel_post"])
 
 if __name__=="__main__":
     main()
