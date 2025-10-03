@@ -8,7 +8,7 @@ load_dotenv()
 TELEGRAM_TOKEN=os.getenv("TELEGRAM_BOT_TOKEN")
 if not TELEGRAM_TOKEN:
     raise ValueError("Please set TELEGRAM_BOT-TOKEN in your .env file.")
-FASTAPI_URL="http://127.0,0,1:8000/query"
+FASTAPI_URL="http://127.0.0.1:8000/query"
 logging.basicConfig(level=logging.INFO)
 logger=logging.getLogger(__name__)
 #Handles for /start command
