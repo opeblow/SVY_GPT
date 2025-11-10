@@ -20,7 +20,7 @@ if not openai_api_key:
     raise ValueError("Please set OPENAI_API_KEY in your .env file.")
 app=FastAPI(
     title="SVY AGENT API",
-    discription="A FastAPI application for a Geomatics-related RAG agent",
+    description="A FastAPI application for a Geomatics-related RAG agent",
     version="1.0.0"
 )
 INDEX_DIR="faiss_index"
@@ -32,7 +32,7 @@ def initialize_components():
     global llm,embeddings,vector_store,chain
     print("Initializing components..")
     try:
-        device="cuda" if torch.cuda.is_available() else "cpu"
+        device="cpu"
         embeddings=HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2",
             model_kwargs={"device":device}
@@ -162,7 +162,7 @@ async def query_agent(request:QueryRequest):
 
 if __name__=="__main":
     port=int(os.getenviron.get("PORT",8000))
-    uvicorn.run("backend:app",port=port)
+    uvicorn.run("backend:app",host="0.0.0.0",port=port,reload=False)
     
 
 
