@@ -1,14 +1,17 @@
 from pypdf import PdfReader
 import os
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain.chains.conversational_retrieval.base import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from tqdm import tqdm
+import json
 
-# Load environment variables
+# Loading environment variables
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
@@ -32,7 +35,7 @@ def extract_text_from_pdf(pdf_path):
         print(f"Error reading {pdf_path}: {e}")
         return ""
 
-# Extract text from all PDFs
+# Extracting text from all PDFs
 all_texts = {}
 for root, dirs, files in os.walk(PDF_PATH):
     for file in files:
@@ -43,14 +46,13 @@ for root, dirs, files in os.walk(PDF_PATH):
             if not text:
                 print(f"Warning: No text extracted from {file}")
 
-# Split texts into chunks
+# Spliting texts into larger chunks 
 text_splitter = CharacterTextSplitter(
-    chunk_size=1200,
+    chunk_size=1200,   
     chunk_overlap=100,
     separator="\n"
 )
 
-# Prepare documents and metadata
 documents = []
 metadata = []
 for pdf_name, text in all_texts.items():
@@ -63,78 +65,70 @@ for pdf_name, text in all_texts.items():
     else:
         print(f"Skipping {pdf_name}: No text to split.")
 
-# Function to embed in smaller batches
-def embed_in_smaller_batches(texts, embedding, batch_size=10):
-    all_embeddings = []
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i:i+batch_size]
-        try:
-            batch_embeddings = embedding.embed_documents(batch)
-            all_embeddings.extend(batch_embeddings)
-            print(f"Embedded batch {i//batch_size + 1} of {(len(texts) // batch_size) + 1}")
-        except Exception as e:
-           print(f"Error in batch {i//batch_size + 1}: {e}")
-           raise
-    return all_embeddings
-
-# Generate embeddings
-embedding = OpenAIEmbeddings(
-    model="text-embedding-3-small",
-    openai_api_key=openai_api_key
-)
-
-# Debug documents and metadata
 print("Documents count:", len(documents), "Metadata count:", len(metadata))
 if not documents:
     raise ValueError("No documents to embed. Check PDF extraction.")
 
-# Create FAISS index
-try:
-    # Using FAISS.from_texts for simplicity; switch to embed_in_smaller_batches if needed
-    vector_store = FAISS.from_texts(documents, embedding, metadatas=metadata)
-    print(" Generated embeddings and created FAISS index.")
-except Exception as e:
-    print(f"Error creating FAISS index: {e}")
-    # Fallback to batch processing if needed
-    all_embeddings = embed_in_smaller_batches(documents, embedding, batch_size=10)
-    vector_store = FAISS.from_embeddings(
-        [(doc, emb) for doc, emb in zip(documents, all_embeddings)],
-        embedding,
-        metadatas=metadata
-    )
-    print(" Generated embeddings with batch processing and created FAISS index.")
+# Hugging Face Embeddings 
+embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-# Initialize ChatOpenAI with gpt-4o
+# Embeding in batches with progress bar
+def embed_with_progress(texts, embedding, batch_size=32):
+    all_embeddings = []
+    for i in tqdm(range(0, len(texts), batch_size), desc=" Embedding chunks"):
+        batch = texts[i:i+batch_size]
+        batch_embeddings = embedding.embed_documents(batch)
+        all_embeddings.extend(batch_embeddings)
+    return all_embeddings
+
+print(" Starting embeddings...")
+all_embeddings = embed_with_progress(documents, embedding, batch_size=32)
+
+# Building FAISS index
+vector_store = FAISS.from_embeddings(
+    [(doc, emb) for doc, emb in zip(documents, all_embeddings)],
+    embedding,
+    metadatas=metadata
+)
+print(" Finished embeddings and created FAISS index.")
+SAVE_DIR="faiss_index"
+vector_store.save_local(SAVE_DIR)
+print(f"Faiss Index saved to {SAVE_DIR}")
+docs_metadata=metadata
+with open(f"{SAVE_DIR}/index.json","w")as f:
+    json.dump(docs_metadata,f,indent=2)
+print("Metadata saved to index.json.")
+#  ChatOpenAI 
 llm = ChatOpenAI(
-    model="gpt-4o",
+    model="gpt-4o",  
     openai_api_key=openai_api_key,
     temperature=0.7,
     max_tokens=500
 )
 
-# Message schema
+# System prompt
 system_prompt = (
     "You are SVY Agent, an expert AI specializing in Geomatics-related topics. "
     "Answer user questions with clear, accurate, and concise explanations in a professional yet approachable tone."
 )
 prompt_template = PromptTemplate(
-    input_variables=["context", "question", "chat_history"],
+    input_variables=["context", "question", ],
     template=(
         "{system_prompt}\n\n"
-        "Releavant Context:\n{context}\n\n"
+        "Relevant Context:\n{context}\n\n"
         "Human: {question}\n\n"
         "Assistant: "
     )
 )
 
-# Set up conversation memory
+# Conversation memory
 memory = ConversationBufferMemory(
     memory_key="chat_history",
     return_messages=True,
     output_key="answer"
 )
 
-# Set up conversational retrieval chain
+# Conversational retrieval chain
 chain = ConversationalRetrievalChain.from_llm(
     llm=llm,
     retriever=vector_store.as_retriever(search_kwargs={"k": 3}),
