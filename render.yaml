@@ -14,3 +14,4 @@ services:
         sync: false   # you’ll paste it in dashboard
       - key: PYTHONUNBUFFERED
         value: "1"
+        
