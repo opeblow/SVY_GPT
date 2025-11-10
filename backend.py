@@ -159,8 +159,7 @@ async def query_agent(request:QueryRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occured:{e}"
         )
-if __name__=="__main__":
-    uvicorn.run(app,host="0.0.0.0",port=8000)
+    
 
 
 
