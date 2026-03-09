@@ -1,6 +1,22 @@
-myenv                                                                                                                                 
-__pycache__
+# Virtual environments
+myenv/
+venv/
+ENV/
+env/
+.venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
+
+
+
+# Project specific
+faiss_index/
+ALL_PDF_FILES/
+*.pdf
 .env
-ALL_PDF_FILES
+
+
 
 

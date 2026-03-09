@@ -1,112 +1,359 @@
-SVY AgentOverviewSVY Agent is an AI-powered conversational tool designed to answer questions related to Geomatics by leveraging a Retrieval-Augmented Generation (RAG) pipeline. It processes PDF documents, extracts relevant information, and provides accurate, professional responses using natural language processing. The project includes two implementations:OpenAI Implementation (main.py): Uses OpenAI's text-embedding-3-small for retrieval and GPT-4o for generation.
-Hugging Face Implementation (hugginface.py): Uses Hugging Face's sentence-transformers/all-MiniLM-L6-v2 for retrieval and GPT-4o for generation.
+# SVY Agent
 
-Both implementations extract text from PDFs, create a FAISS vector store for retrieval, and support interactive queries via a command-line interface.FeaturesExtracts text from PDF files in a specified directory.
-Splits text into chunks (1200 characters, 100-character overlap) for efficient retrieval.
-Generates embeddings using either OpenAI or Hugging Face models.
-Stores embeddings in a FAISS index for fast similarity search.
-Provides conversational responses using OpenAI's GPT-4o model, tailored to Geomatics topics.
-Maintains conversation history for context-aware responses.
-Supports batch processing for large document sets with progress logging.
+<div align="center">
 
+![Python](https://img.shields.io/badge/Python-3.12+-blue?style=for-the-badge&logo=python)
 
-PrerequisitesPython: 3.8 or higher
-OpenAI API Key: Required for both implementations (for embeddings in main.py and generation in both).
-PDF Files: Place Geomatics-related PDFs in a directory (default: C:\Users\user\Documents\svy agent\ALL_PDF_FILES).
-Hardware:Minimum: 8GB RAM, 2-core CPU.
-Recommended: 16GB RAM, 4-core CPU for large document sets.
+![Telegram](https://img.shields.io/badge/Telegram-26a5e4?style=for-the-badge&logo=telegram)
+![LangChain](https://img.shields.io/badge/LangChain-0.3.0-1c1c1c?style=for-the-badge)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
+</div>
 
+> **AI-Powered Geomatics & Surveying Assistant**
+>
+> A Retrieval-Augmented Generation (RAG) powered Telegram bot that answers questions related to Geomatics, Land Surveying, GIS, Remote Sensing, and more.
 
-Installation
-1.Clone the Respiratory:
+##  Table of Contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running the Project](#running-the-project)
+- [Deployment](#deployment)
+- [Usage](#usage)
+- [API Endpoints](#api-endpoints)
+- [Tech Stack](#tech-stack)
+- [Contributing](#contributing)
+- [License](#license)
+
+##  Overview
+
+SVY Agent is an intelligent conversational assistant designed specifically for Surveying and Geoinformatics students and professionals. It leverages state-of-the-art NLP technology to provide accurate, context-aware responses to questions about geomatics topics.
+
+The system uses **Retrieval-Augmented Generation (RAG)** to ensure responses are grounded in authoritative PDF materials, making it ideal for academic and professional use.
+
+##  Features
+
+-  **AI-Powered Conversations** - Natural language responses powered by GPT-4o
+-  **PDF Document Processing** - Extracts and processes content from PDF study materials
+-  **Semantic Search** - Finds relevant information using embeddings-based retrieval
+-  **Telegram Interface** - Easy access via the popular messaging platform
+-  **Context-Aware Responses** - Maintains conversation history for coherent dialogue
+-  **Debug Mode** - View source documents used for responses
+
+##  Architecture
+
+```
+┌─────────────┐     ┌─────────────────┐     ┌──────────────────┐
+│  Telegram   │────▶│  Telegram Bot   │────▶│    RAG Service   │
+│   User      │     │   (Python)      │     │   (LangChain)    │
+└─────────────┘     └────────┬────────┘     └────────┬─────────┘
+                             │                        │
+                             ▼                        ▼
+                     ┌─────────────────┐     ┌──────────────────┐
+                     │  OpenAI GPT-4o │     │    FAISS Index   │
+                     │     (LLM)       │     │   (Vector Store) │
+                     └─────────────────┘     └──────────────────┘
+```
+
+##  Project Structure
+
+```
+svy-agent/
+├── src/                          # Main source code
+│   ├── bot.py                    # Telegram bot entry point (integrated RAG)
+│   ├── handlers/                 # Bot command and message handlers
+│   │   ├── commands.py           # /start, /help, /status commands
+│   │   ├── messages.py           # Message processing logic
+│   │   └── errors.py             # Error handling
+│   ├── services/                 # Business logic services
+│   │   ├── rag_service.py        # RAG pipeline implementation
+│   │   └── pdf_processor.py      # PDF extraction and indexing
+│   └── utils/                    # Utility modules
+│       └── logging_config.py     # Logging configuration
+├── config/                       # Configuration management
+│   └── __init__.py               # Config dataclass
+├── scripts/                      # Utility scripts
+│   └── index_documents.py        # Build vector store from PDFs
+                 
+├── ALL_PDF_FILES/                # Source PDF documents (gitignored)
+├── .env.example                  # Environment variables template
+├── requirements.txt              # Python dependencies                  
+└── README.md                     # This file
+```
+
+##  Prerequisites
+
+| Requirement | Version |
+|-------------|---------|
+| Python | 3.12+ |
+| OpenAI API Key | Required |
+| Telegram Bot Token | Required |
+
+### Hardware Requirements
+
+| | Minimum | Recommended |
+|---|---------|-------------|
+| RAM | 8GB | 16GB |
+| CPU | 2 cores | 4+ cores |
+| Storage | 2GB | 10GB+ (for PDFs) |
+
+##  Installation
+
+### 1. Clone the Repository
+
+```bash
 git clone https://github.com/opeblow/SVY_GPT.git
-cd SVY_GPT
+cd svy-agent
+```
 
+### 2. Create Virtual Environment
 
-2.Install Dependencies:
-Create a virtual environment and install required packages:
-python -m venv myenv
-source myenv/bin/activate #On windows:myenv\Scripts\activate
-pip install pypdf langchain langchain-openai langchain-community faiss-cpu python-dotenv
-for the Hugging Face implementation,also install:
-pip install sentence-transformers tqdm
+```bash
+# Windows
+python -m venv venv
+venv\Scripts\activate
 
+# Linux/Mac
+python -m venv venv
+source venv/bin/activate
+```
 
-3.Set Up Environment Variables:
-Create a .env file in this project root with your OpenAIAPIKey:
-env
-OPENAI_API_KEY="your-openai-api-key
+### 3. Install Dependencies
 
+```bash
+pip install -r requirements.txt
+```
 
-4.Prepare pdf Files
-Place your Geomatics-related pdf files in the directory specified in the code(default:c:Users\user\Documents\svyagent\ALL_PDF_FILES).Update the PDF_PATH variable in thr scripts if needed.
-Usage
+### 4. Configure Environment Variables
 
-1.Run the OpenAI Implementation
-python main.py
+```bash
+# Copy the example file
+cp .env.example .env
+
+# Edit .env with your credentials
+nano .env
+```
+
+##  Configuration
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+# Required
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Optional - RAG Configuration
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+EMBEDDING_DEVICE=cpu
+CHUNK_SIZE=1200
+CHUNK_OVERLAP=100
+RETRIEVAL_K=5
+
+# Optional - LLM Configuration
+LLM_MODEL=gpt-4o
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=500
+
+# Optional - Paths
+INDEX_DIR=faiss_index
+PDF_DIRECTORY=ALL_PDF_FILES
+
+# Optional
+DEBUG=false
+```
+
+### Getting Your Telegram Bot Token
+
+1. Open Telegram and search for @BotFather
+2. Send `/newbot` to create a new bot
+3. Follow the instructions and get your API token
+4. Start your bot by sending `/start`
+
+### Getting Your OpenAI API Key
+
+1. Go to [OpenAI Platform](https://platform.openai.com/)
+2. Navigate to API Keys
+3. Create a new secret key
+
+##  Running the Project
+
+### Step 1: Add PDF Documents
+
+Place your Geomatics-related PDF files in the `ALL_PDF_FILES` directory:
+
+```bash
+# Windows
+mkdir ALL_PDF_FILES
+# Copy your PDFs there
+
+# Or update the path in .env
+PDF_DIRECTORY=path/to/your/pdfs
+```
+
+### Step 2: Build the Vector Store
+
+```bash
+# Activate virtual environment
+# Windows: venv\Scripts\activate
+# Linux/Mac: source venv/bin/activate
+
+# Run the indexing script
+python scripts/index_documents.py
+```
+
 This will:
-Extract text from PDFs
-Generate embeddings using OpenAI'S text-embedding-3-small.
-Build a FAISS index
-Start an interactive loop for queries
+- Extract text from all PDFs
+- Split into chunks
+- Create embeddings
+- Save the FAISS index
 
-2.Run the hugging Face Implementation:
-python hugging_face.py
-This will:
-Extract text from PDFs
-Generate embeddings using Hugging Face's sentence -transformers/all-MiniLN-L6-v2
-Build and save a FAISS INDEX TO the faiss_index dictionary
-Start and interactive loop for queries
+### Step 3: Start the Bot
 
-3.Interaction with SVY Agent:
-Enter a question(e.g,"What is the role of GIS IN Geomatics?)
-The agent will retrieve relevant document chunks and generate a response
-Type quit to exit the interactive loop
+```bash
+# Start the Telegram bot (RAG is initialized automatically)
+python -m src.bot
+```
+
+Or use the run script:
+
+```bash
+python run.py bot
+```
+
+### Step 4: Test Your Bot
+
+1. Open Telegram and find your bot
+2. Send `/start` to see the welcome message
+3. Ask a question about Geomatics!
+
+## ☁️ Deployment
+
+### Deploying to Render.com (Free)
+
+Render offers a free tier that's perfect for this project.
+
+#### Step 1: Push to GitHub
+
+```bash
+git add .
+git commit -m "Initial commit"
+git push origin main
+```
+
+#### Step 2: Create Render Account
+
+1. Go to [Render.com](https://render.com)
+2. Sign up with GitHub
+3. Click "New +" → "Web Service"
+
+#### Step 3: Configure Deployment
+
+| Setting | Value |
+|---------|-------|
+| Name | svy-agent |
+| Region | Oregon (or closest to you) |
+| Branch | main |
+| Runtime | Python |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `python -m src.bot` |
+
+#### Step 4: Add Environment Variables
+
+In the Render dashboard, add these environment variables:
+
+- `OPENAI_API_KEY` - Your OpenAI API key
+- `TELEGRAM_BOT_TOKEN` - Your Telegram bot token
+- `PYTHONUNBUFFERED` - `1`
+
+#### Step 5: Deploy
+
+Click "Create Web Service" and wait for deployment.
+
+**Note:** Since the FAISS index is built locally, you'll need to commit it or use an external storage solution. For production, consider:
+
+1. Building the index locally and committing the `faiss_index` folder
+2. Using a cloud storage service (AWS S3, Google Drive)
+3. Adding a Google Drive integration 
 
 
 
-Example Interaction
-Welcome to SVY GPT!Type your question(or 'quit' to exit):
-You:What is the role of GIS in Geomatics?
-Assistant Response:Geographic information Systems(GIS) play a central role in Geomatics by enabling the collection,storage,analysis,and visualization of spatial data.GIS tools help professionals map and analyze geographic features,supporting applications like urban planning,land surveying,and environmental management.
-You:quit
+```bash
+# Railway
+railway init
+railway up
+
+# DigitalOcean App Platform
+doctl apps create
+```
+
+##  Usage
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Start the bot and see welcome message |
+| `/help` | Show help information |
+| `/status` | Check if backend is running |
+
+### Example Questions
+
+```
+What is GIS and its applications in urban planning?
+Explain the principles of land surveying
+What are the different types of remote sensing?
+How does GPS work in surveying?
+What is coordinate reference system?
+```
+
+### Debug Mode
+
+Set `DEBUG=true` in your `.env` file to see source documents in responses.
+
+##  Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Language | Python 3.12+ |
+| Framework | python-telegram-bot |
+| AI/LLM | OpenAI GPT-4o, LangChain |
+| Embeddings | HuggingFace sentence-transformers |
+| Vector Store | FAISS |
+| Deployment | Render.com (free) |
+
+##  Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting PRs.
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests
+5. Submit a pull request
+
+##  License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+##  Contact
+
+For questions or support:
+- Email: opeblow2021@gmail.com
 
 
+---
 
-Implementation DetailsOpenAI Implementation (main.py)Embedding Model: OpenAI text-embedding-3-small.
-Generation Model: OpenAI GPT-4o.
-Pros: High-quality embeddings, seamless integration with OpenAI's ecosystem.
-Cons: Requires OpenAI API credits, potentially higher cost.
+<div align="center">
 
+Made with ❤️ for Geomatics Students
 
-
-Hugging Face Implementation (hugginface.py)Embedding Model: Hugging Face sentence-transformers/all-MiniLM-L6-v2.
-Generation Model: OpenAI GPT-4o.
-Pros: Cost-effective embeddings, suitable for local deployment.
-Cons: May have slightly lower retrieval accuracy compared to OpenAI embeddings.
-
-
-
-Both implementations use the LangChain framework for text splitting, vector storage (FAISS), and conversational retrieval. The FAISS index in hugginface.py is saved locally for reuse, while main.py generates it dynamically.ConfigurationPDF Directory: Modify PDF_PATH in the scripts to point to your PDF folder.
-Chunk Size: Adjust chunk_size (default: 1200) and chunk_overlap (default: 100) in the CharacterTextSplitter for different text granularity.
-Retrieval Parameters: Change search_kwargs={"k": 3} in the ConversationalRetrievalChain to retrieve more or fewer document chunks.
-Model Parameters: Adjust temperature (default: 0.7) or max_tokens (default: 500) in the ChatOpenAI configuration for response style.
-
-
-
-TroubleshootingNo text extracted from PDFs: Ensure PDFs contain extractable text (not image-based). Consider adding OCR support for scanned documents.
-OpenAI API errors: Verify your API key and check for rate limits or network issues.
-Memory issues: Reduce the batch size in main.py (e.g., batch_size=5) or hugginface.py (e.g., batch_size=16) for large document sets.
-No documents to embed: Check the PDF_PATH directory and ensure PDFs are present and readable.
-
-
-
-Future EnhancementsAdd support for additional document formats (e.g., DOCX, TXT).
-Implement a web or GUI interface for easier access.
-Explore local LLMs for generation to reduce OpenAI API dependency.
-Optimize FAISS index for larger datasets with hierarchical indexing.
-
-
-Contact:
-For questions or support ,contact opeblow2021@gmail.com
+</div>
