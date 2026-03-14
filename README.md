@@ -207,7 +207,7 @@ PDF_DIRECTORY=path/to/your/pdfs
 # Linux/Mac: source venv/bin/activate
 
 # Run the indexing script
-python scripts/index_documents.py
+python run.py index
 ```
 
 This will:
@@ -220,12 +220,9 @@ This will:
 
 ```bash
 # Start the Telegram bot (RAG is initialized automatically)
-python -m src.bot
-```
 
-Or use the run script:
 
-```bash
+
 python run.py bot
 ```
 
@@ -235,7 +232,7 @@ python run.py bot
 2. Send `/start` to see the welcome message
 3. Ask a question about Geomatics!
 
-## ☁️ Deployment
+##  Deployment
 
 ### Deploying to Render.com (Free)
 
@@ -264,7 +261,7 @@ git push origin main
 | Branch | main |
 | Runtime | Python |
 | Build Command | `pip install -r requirements.txt` |
-| Start Command | `python -m src.bot` |
+| Start Command | `python run.py bot` |
 
 #### Step 4: Add Environment Variables
 
