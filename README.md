@@ -351,6 +351,6 @@ For questions or support:
 
 <div align="center">
 
-Made with ❤️ for Geomatics Students
+Made with love for Geomatics Students
 
 </div>
